@@ -106,7 +106,7 @@ def test_parse_waypoints_empty_file(tmp_path):
     assert parse_waypoints_file(path) == (None, [])
 
 def test_parse_waypoints_not_mapping(tmp_path):
-    path = write_to_tmp_waypoints_file(tmp_path, "- just a list") ## Converts into "['just a list']"
+    path = write_to_tmp_waypoints_file(tmp_path, "- just a list") # Converts into "['just a list']"
     with pytest.raises(ValueError, match="expected a mapping"):
         parse_waypoints_file(path)
 
@@ -149,27 +149,27 @@ def test_coordinate_frozen(tmp_path):
 def test_east_north_coordinate_offset_m():
     from_lat = 0.0
     from_lon = 0.0
-    to_lat = 1.0  ## Move 1 degree north
+    to_lat = 1.0  # Move 1 degree north
     to_lon = 0.0
     east, north = east_north_coordinate_offset_m(from_lat, from_lon, to_lat, to_lon)
     assert east == pytest.approx(0.0)
     assert north == pytest.approx(math.radians(1.0) * EARTH_RADIUS_M)
 
     to_lat = 0.0
-    to_lon = 1.0 ## Move 1 degree east
+    to_lon = 1.0 # Move 1 degree east
     east, north = east_north_coordinate_offset_m(from_lat, from_lon, to_lat, to_lon)
     assert east == pytest.approx(math.radians(1.0) * EARTH_RADIUS_M)
     assert north == pytest.approx(0.0)
 
     from_lat = 60.0 
-    to_lat = 60.0 ## Move 1 degree east at 60 degrees latitude
+    to_lat = 60.0 # Move 1 degree east at 60 degrees latitude
     from_lon = 0.0
     to_lon = 1.0
     east, north = east_north_coordinate_offset_m(from_lat, from_lon, to_lat, to_lon)
     assert east == pytest.approx(math.radians(1.0) * math.cos(math.radians(60.0)) * EARTH_RADIUS_M)
     assert north == pytest.approx(0.0)
 
-def test_sort_0_1_waypoints(): ## If you have 0 or 1 waypoints, the order is trivial and should be returned as is.
+def test_sort_0_1_waypoints(): # If you have 0 or 1 waypoints, the order is trivial and should be returned as is.
     assert sort_clockwise_sweep([]) == []
     wp = Coordinate(1, 1, 1)
     assert sort_clockwise_sweep([wp]) == [wp]
@@ -180,7 +180,7 @@ def test_sort_no_home():
     wp_s = Coordinate(-1, 0, 0)
     wp_w = Coordinate(0, -1, 0)
     wps = [wp_s, wp_e, wp_w, wp_n]
-    assert sort_clockwise_sweep(wps) == [wp_n, wp_e, wp_s, wp_w] ## Note that the order is clockwise.
+    assert sort_clockwise_sweep(wps) == [wp_n, wp_e, wp_s, wp_w] # Note that the order is clockwise.
 
 def test_sort_with_home():
     wp_n = Coordinate(1, 0, 0)
@@ -188,7 +188,7 @@ def test_sort_with_home():
     wp_s = Coordinate(-1, 0, 0)
     wp_w = Coordinate(0, -1, 0)
     wps = [wp_n, wp_e, wp_s, wp_w]
-    home = Coordinate(-2, 0, 0) ## The sweep should start from the south, since home is in that direction.
+    home = Coordinate(-2, 0, 0) # The sweep should start from the south, since home is in that direction.
     assert sort_clockwise_sweep(wps, home) == [wp_s, wp_w, wp_n, wp_e]
 
 def test_sort_home_at_centroid():
@@ -197,7 +197,7 @@ def test_sort_home_at_centroid():
     wp_s = Coordinate(-1, 0, 0)
     wp_w = Coordinate(0, -1, 0)
     wps = [wp_s, wp_e, wp_w, wp_n]
-    home = Coordinate(0, 0, 0) ## Home is at the centroid of the waypoints, so the order should start from north (default).
+    home = Coordinate(0, 0, 0) # Home is at the centroid of the waypoints, so the order should start from north (default).
     assert sort_clockwise_sweep(wps, home) == [wp_n, wp_e, wp_s, wp_w]
 
 def test_sort_same_direction():
@@ -205,6 +205,6 @@ def test_sort_same_direction():
     wp_n_far = Coordinate(2, 0, 0)
     wp_s_far = Coordinate(-2, 0, 0)
     wp_s_near = Coordinate(-1, 0, 0)
-    wps = [wp_n_far, wp_n_near, wp_s_near, wp_s_far] ## The waypoint closer to the centroid should come first in the order.
+    wps = [wp_n_far, wp_n_near, wp_s_near, wp_s_far] # The waypoint closer to the centroid should come first in the order.
     assert sort_clockwise_sweep(wps) == [wp_n_near, wp_n_far, wp_s_near, wp_s_far]
 
