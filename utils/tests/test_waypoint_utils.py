@@ -24,14 +24,18 @@ Graded by ``warg run utils grade-tests``: pass on the real code, 90% branch
 coverage, and fail on every broken copy in ``grader/mutants/``.
 """
 
+import dataclasses
+import math
+
 import pytest
 
+from src.constants import EARTH_RADIUS_M
+from src.types import Coordinate
 from src.waypoint_utils import (
     east_north_coordinate_offset_m,
     parse_waypoints_file,
     sort_clockwise_sweep,
 )
-from src.types import Coordinate
 
 # The helper and the test below are given to you.
 
@@ -83,14 +87,124 @@ def write_to_tmp_waypoints_file(tmp_path, text):
     ],
     ids=["home-and-waypoints", "no-home", "comments-and-blank-lines"],
 )
+
 def test_parse_waypoints_file_success(tmp_path, text, expected):
     path = write_to_tmp_waypoints_file(tmp_path, text)
     assert parse_waypoints_file(path) == expected
 
+def test_parse_waypoints_missing_file(tmp_path):
+    with pytest.raises(OSError):
+        parse_waypoints_file(tmp_path / "does_not_exist.yaml")
 
-def test_placeholder():
-    # TODO(bootcamper): delete this and write real tests. It's only here so
-    # linter doesn't complain about unused imports before you start.
-    assert callable(east_north_coordinate_offset_m)
-    assert callable(parse_waypoints_file)
-    assert callable(sort_clockwise_sweep)
+def test_parse_waypoints_invalid_yaml(tmp_path):
+    path = write_to_tmp_waypoints_file(tmp_path, "[unbalanced_bracket")
+    with pytest.raises(ValueError, match="invalid YAML"):
+        parse_waypoints_file(path)
+
+def test_parse_waypoints_empty_file(tmp_path):
+    path = write_to_tmp_waypoints_file(tmp_path, "")
+    assert parse_waypoints_file(path) == (None, [])
+
+def test_parse_waypoints_not_mapping(tmp_path):
+    path = write_to_tmp_waypoints_file(tmp_path, "- just a list") ## Converts into "['just a list']"
+    with pytest.raises(ValueError, match="expected a mapping"):
+        parse_waypoints_file(path)
+
+def test_parse_waypoints_not_list(tmp_path):
+    path = write_to_tmp_waypoints_file(tmp_path, "waypoints: {lat: 1, lon: 2, alt: 3}")
+    with pytest.raises(ValueError, match="'waypoints' must be a list"):
+        parse_waypoints_file(path)
+
+def test_parse_entry_not_dict(tmp_path):
+    path = write_to_tmp_waypoints_file(tmp_path, "waypoints: ['not a dict']")
+    with pytest.raises(ValueError, match="must be a mapping"):
+        parse_waypoints_file(path)
+
+def test_parse_entry_missing_keys(tmp_path):
+    path = write_to_tmp_waypoints_file(tmp_path, "waypoints: [{lat: 1, lon: 2}]")
+    with pytest.raises(ValueError, match="missing key"):
+        parse_waypoints_file(path)
+
+def test_parse_entry_non_numeric(tmp_path):
+    path = write_to_tmp_waypoints_file(tmp_path, "waypoints: [{lat: 1, lon: 'foo', alt: 3}]")
+    with pytest.raises(ValueError, match="non-numeric value"):
+        parse_waypoints_file(path)
+
+def test_parse_entry_out_of_range_lat(tmp_path):
+    path = write_to_tmp_waypoints_file(tmp_path, "waypoints: [{lat: 91, lon: 2, alt: 3}]")
+    with pytest.raises(ValueError, match="out of range"):
+        parse_waypoints_file(path)
+
+def test_parse_entry_out_of_range_lon(tmp_path):
+    path = write_to_tmp_waypoints_file(tmp_path, "waypoints: [{lat: 1, lon: -181, alt: 3}]")
+    with pytest.raises(ValueError, match="out of range"):
+        parse_waypoints_file(path)
+
+def test_coordinate_frozen(tmp_path):
+    path = write_to_tmp_waypoints_file(tmp_path, "waypoints: [{lat: 1, lon: 2, alt: 3}]")
+    _, wps = parse_waypoints_file(path)
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        wps[0].lat = 5
+
+def test_east_north_coordinate_offset_m():
+    from_lat = 0.0
+    from_lon = 0.0
+    to_lat = 1.0  ## Move 1 degree north
+    to_lon = 0.0
+    east, north = east_north_coordinate_offset_m(from_lat, from_lon, to_lat, to_lon)
+    assert east == pytest.approx(0.0)
+    assert north == pytest.approx(math.radians(1.0) * EARTH_RADIUS_M)
+
+    to_lat = 0.0
+    to_lon = 1.0 ## Move 1 degree east
+    east, north = east_north_coordinate_offset_m(from_lat, from_lon, to_lat, to_lon)
+    assert east == pytest.approx(math.radians(1.0) * EARTH_RADIUS_M)
+    assert north == pytest.approx(0.0)
+
+    from_lat = 60.0 
+    to_lat = 60.0 ## Move 1 degree east at 60 degrees latitude
+    from_lon = 0.0
+    to_lon = 1.0
+    east, north = east_north_coordinate_offset_m(from_lat, from_lon, to_lat, to_lon)
+    assert east == pytest.approx(math.radians(1.0) * math.cos(math.radians(60.0)) * EARTH_RADIUS_M)
+    assert north == pytest.approx(0.0)
+
+def test_sort_0_1_waypoints(): ## If you have 0 or 1 waypoints, the order is trivial and should be returned as is.
+    assert sort_clockwise_sweep([]) == []
+    wp = Coordinate(1, 1, 1)
+    assert sort_clockwise_sweep([wp]) == [wp]
+
+def test_sort_no_home():
+    wp_n = Coordinate(1, 0, 0)
+    wp_e = Coordinate(0, 1, 0)
+    wp_s = Coordinate(-1, 0, 0)
+    wp_w = Coordinate(0, -1, 0)
+    wps = [wp_s, wp_e, wp_w, wp_n]
+    assert sort_clockwise_sweep(wps) == [wp_n, wp_e, wp_s, wp_w] ## Note that the order is clockwise.
+
+def test_sort_with_home():
+    wp_n = Coordinate(1, 0, 0)
+    wp_e = Coordinate(0, 1, 0)
+    wp_s = Coordinate(-1, 0, 0)
+    wp_w = Coordinate(0, -1, 0)
+    wps = [wp_n, wp_e, wp_s, wp_w]
+    home = Coordinate(-2, 0, 0) ## The sweep should start from the south, since home is in that direction.
+    assert sort_clockwise_sweep(wps, home) == [wp_s, wp_w, wp_n, wp_e]
+
+def test_sort_home_at_centroid():
+    wp_n = Coordinate(1, 0, 0)
+    wp_e = Coordinate(0, 1, 0)
+    wp_s = Coordinate(-1, 0, 0)
+    wp_w = Coordinate(0, -1, 0)
+    wps = [wp_s, wp_e, wp_w, wp_n]
+    home = Coordinate(0, 0, 0) ## Home is at the centroid of the waypoints, so the order should start from north (default).
+    assert sort_clockwise_sweep(wps, home) == [wp_n, wp_e, wp_s, wp_w]
+
+def test_sort_same_direction():
+    wp_n_near = Coordinate(1, 0, 0)
+    wp_n_far = Coordinate(2, 0, 0)
+    wp_s_far = Coordinate(-2, 0, 0)
+    wp_s_near = Coordinate(-1, 0, 0)
+    wps = [wp_n_far, wp_n_near, wp_s_near, wp_s_far] ## The waypoint closer to the centroid should come first in the order.
+    assert sort_clockwise_sweep(wps) == [wp_n_near, wp_n_far, wp_s_near, wp_s_far]
+
